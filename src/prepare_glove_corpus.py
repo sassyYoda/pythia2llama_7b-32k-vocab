@@ -1,0 +1,302 @@
+#!/usr/bin/env python
+# coding=utf-8
+"""
+Prepare GloVe training corpus from multiple sources.
+Based on TokAlign paper: mix of CulturaX (40%), The Stack (30%), Proof-Pile-2 (30%)
+Total: 1B tokens
+"""
+
+import json
+import argparse
+import os
+from datasets import load_dataset
+from tqdm import tqdm
+from transformers import AutoTokenizer
+import random
+
+def count_tokens(text, tokenizer):
+    """Count tokens in text using a tokenizer."""
+    return len(tokenizer.encode(text, add_special_tokens=False))
+
+def sample_from_dataset(dataset, target_tokens, tokenizer, dataset_name, seed=42):
+    """
+    Sample from a dataset until we reach approximately target_tokens.
+    Returns list of texts.
+    """
+    random.seed(seed)
+    texts = []
+    total_tokens = 0
+    dataset_size = len(dataset)
+    
+    # Shuffle indices
+    indices = list(range(dataset_size))
+    random.shuffle(indices)
+    
+    print(f"\nSampling from {dataset_name}...")
+    pbar = tqdm(total=target_tokens, desc=f"Collecting tokens from {dataset_name}")
+    
+    idx = 0
+    while total_tokens < target_tokens and idx < dataset_size:
+        example = dataset[indices[idx]]
+        
+        # Extract text field
+        if isinstance(example, dict):
+            text = example.get("text", "")
+        else:
+            text = str(example)
+        
+        if text and len(text.strip()) > 0:
+            tokens = count_tokens(text, tokenizer)
+            if tokens > 0:
+                texts.append(text)
+                total_tokens += tokens
+                pbar.update(tokens)
+        
+        idx += 1
+    
+    pbar.close()
+    print(f"Collected {total_tokens:,} tokens from {dataset_name} ({len(texts):,} examples)")
+    return texts, total_tokens
+
+def load_culturax(cache_dir=None, max_samples=None):
+    """Load CulturaX dataset."""
+    try:
+        # Try common CulturaX dataset names
+        dataset = load_dataset("uonlp/CulturaX", cache_dir=cache_dir, streaming=False)
+        if "train" in dataset:
+            return dataset["train"]
+        return dataset[list(dataset.keys())[0]]
+    except Exception as e:
+        print(f"Warning: Could not load CulturaX from uonlp/CulturaX: {e}")
+        print("Please ensure CulturaX is available or update the dataset name.")
+        raise
+
+def load_the_stack(cache_dir=None, max_samples=None):
+    """Load The Stack dataset."""
+    try:
+        # The Stack is large, we'll use a subset
+        dataset = load_dataset("bigcode/the-stack", data_dir="data/python", cache_dir=cache_dir, streaming=False)
+        if "train" in dataset:
+            return dataset["train"]
+        return dataset[list(dataset.keys())[0]]
+    except Exception as e:
+        print(f"Warning: Could not load The Stack from bigcode/the-stack: {e}")
+        print("Trying alternative: bigcode/starcoderdata")
+        try:
+            dataset = load_dataset("bigcode/starcoderdata", cache_dir=cache_dir, streaming=False)
+            if "train" in dataset:
+                return dataset["train"]
+            return dataset[list(dataset.keys())[0]]
+        except Exception as e2:
+            print(f"Could not load alternative: {e2}")
+            raise
+
+def load_proof_pile_2(cache_dir=None, max_samples=None):
+    """Load Proof-Pile-2 dataset."""
+    try:
+        dataset = load_dataset("EleutherAI/proof-pile-2", cache_dir=cache_dir, streaming=False)
+        if "train" in dataset:
+            return dataset["train"]
+        return dataset[list(dataset.keys())[0]]
+    except Exception as e:
+        print(f"Warning: Could not load Proof-Pile-2: {e}")
+        print("Please ensure Proof-Pile-2 is available or update the dataset name.")
+        raise
+
+def main():
+    parser = argparse.ArgumentParser(description="Prepare GloVe training corpus")
+    parser.add_argument(
+        "--output-path",
+        type=str,
+        required=True,
+        help="Output JSONL file path"
+    )
+    parser.add_argument(
+        "--total-tokens",
+        type=int,
+        default=1_000_000_000,
+        help="Total number of tokens to collect (default: 1B)"
+    )
+    parser.add_argument(
+        "--culturax-ratio",
+        type=float,
+        default=0.4,
+        help="Ratio of CulturaX tokens (default: 0.4)"
+    )
+    parser.add_argument(
+        "--stack-ratio",
+        type=float,
+        default=0.3,
+        help="Ratio of The Stack tokens (default: 0.3)"
+    )
+    parser.add_argument(
+        "--proof-pile-ratio",
+        type=float,
+        default=0.3,
+        help="Ratio of Proof-Pile-2 tokens (default: 0.3)"
+    )
+    parser.add_argument(
+        "--cache-dir",
+        type=str,
+        default=None,
+        help="Cache directory for datasets"
+    )
+    parser.add_argument(
+        "--tokenizer-name",
+        type=str,
+        default="EleutherAI/pythia-1b",
+        help="Tokenizer to use for counting tokens (default: EleutherAI/pythia-1b)"
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed (default: 42)"
+    )
+    parser.add_argument(
+        "--culturax-dataset",
+        type=str,
+        default="uonlp/CulturaX",
+        help="CulturaX dataset name on HuggingFace"
+    )
+    parser.add_argument(
+        "--stack-dataset",
+        type=str,
+        default="bigcode/the-stack",
+        help="The Stack dataset name on HuggingFace"
+    )
+    parser.add_argument(
+        "--proof-pile-dataset",
+        type=str,
+        default="EleutherAI/proof-pile-2",
+        help="Proof-Pile-2 dataset name on HuggingFace"
+    )
+    
+    args = parser.parse_args()
+    
+    # Validate ratios
+    total_ratio = args.culturax_ratio + args.stack_ratio + args.proof_pile_ratio
+    if abs(total_ratio - 1.0) > 1e-6:
+        print(f"Warning: Ratios sum to {total_ratio}, not 1.0. Normalizing...")
+        args.culturax_ratio /= total_ratio
+        args.stack_ratio /= total_ratio
+        args.proof_pile_ratio /= total_ratio
+    
+    # Calculate target tokens for each dataset
+    culturax_tokens = int(args.total_tokens * args.culturax_ratio)
+    stack_tokens = int(args.total_tokens * args.stack_ratio)
+    proof_pile_tokens = args.total_tokens - culturax_tokens - stack_tokens
+    
+    print(f"Target token distribution:")
+    print(f"  CulturaX: {culturax_tokens:,} tokens ({args.culturax_ratio*100:.1f}%)")
+    print(f"  The Stack: {stack_tokens:,} tokens ({args.stack_ratio*100:.1f}%)")
+    print(f"  Proof-Pile-2: {proof_pile_tokens:,} tokens ({args.proof_pile_ratio*100:.1f}%)")
+    print(f"  Total: {args.total_tokens:,} tokens")
+    
+    # Load tokenizer for counting
+    print(f"\nLoading tokenizer: {args.tokenizer_name}")
+    tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name, trust_remote_code=True)
+    
+    # Load and sample from each dataset
+    all_texts = []
+    
+    # CulturaX (40%)
+    try:
+        print("\n" + "="*60)
+        print("Loading CulturaX dataset...")
+        culturax_dataset = load_dataset(args.culturax_dataset, cache_dir=args.cache_dir, streaming=False)
+        if "train" in culturax_dataset:
+            culturax_data = culturax_dataset["train"]
+        else:
+            culturax_data = culturax_dataset[list(culturax_dataset.keys())[0]]
+        
+        culturax_texts, actual_tokens = sample_from_dataset(
+            culturax_data, culturax_tokens, tokenizer, "CulturaX", seed=args.seed
+        )
+        all_texts.extend(culturax_texts)
+    except Exception as e:
+        print(f"Error loading CulturaX: {e}")
+        print("Skipping CulturaX. Please check dataset availability.")
+    
+    # The Stack (30%)
+    try:
+        print("\n" + "="*60)
+        print("Loading The Stack dataset...")
+        if args.stack_dataset == "bigcode/the-stack":
+            # Try data/python subset first
+            try:
+                stack_dataset = load_dataset(
+                    args.stack_dataset, 
+                    data_dir="data/python",
+                    cache_dir=args.cache_dir,
+                    streaming=False
+                )
+            except:
+                stack_dataset = load_dataset(args.stack_dataset, cache_dir=args.cache_dir, streaming=False)
+        else:
+            stack_dataset = load_dataset(args.stack_dataset, cache_dir=args.cache_dir, streaming=False)
+        
+        if "train" in stack_dataset:
+            stack_data = stack_dataset["train"]
+        else:
+            stack_data = stack_dataset[list(stack_dataset.keys())[0]]
+        
+        stack_texts, actual_tokens = sample_from_dataset(
+            stack_data, stack_tokens, tokenizer, "The Stack", seed=args.seed + 1
+        )
+        all_texts.extend(stack_texts)
+    except Exception as e:
+        print(f"Error loading The Stack: {e}")
+        print("Skipping The Stack. Please check dataset availability.")
+    
+    # Proof-Pile-2 (30%)
+    try:
+        print("\n" + "="*60)
+        print("Loading Proof-Pile-2 dataset...")
+        proof_pile_dataset = load_dataset(args.proof_pile_dataset, cache_dir=args.cache_dir, streaming=False)
+        if "train" in proof_pile_dataset:
+            proof_pile_data = proof_pile_dataset["train"]
+        else:
+            proof_pile_data = proof_pile_dataset[list(proof_pile_dataset.keys())[0]]
+        
+        proof_pile_texts, actual_tokens = sample_from_dataset(
+            proof_pile_data, proof_pile_tokens, tokenizer, "Proof-Pile-2", seed=args.seed + 2
+        )
+        all_texts.extend(proof_pile_texts)
+    except Exception as e:
+        print(f"Error loading Proof-Pile-2: {e}")
+        print("Skipping Proof-Pile-2. Please check dataset availability.")
+    
+    # Shuffle all texts
+    print("\n" + "="*60)
+    print("Shuffling combined corpus...")
+    random.seed(args.seed)
+    random.shuffle(all_texts)
+    
+    # Write to JSONL file
+    print(f"\nWriting {len(all_texts):,} examples to {args.output_path}...")
+    os.makedirs(os.path.dirname(args.output_path) if os.path.dirname(args.output_path) else ".", exist_ok=True)
+    
+    with open(args.output_path, "w", encoding="utf-8") as f:
+        for text in tqdm(all_texts, desc="Writing JSONL"):
+            json.dump({"text": text}, f, ensure_ascii=False)
+            f.write("\n")
+    
+    # Count total tokens in output
+    print("\nCounting total tokens in output file...")
+    total_output_tokens = 0
+    with open(args.output_path, "r", encoding="utf-8") as f:
+        for line in tqdm(f, desc="Counting tokens"):
+            data = json.loads(line)
+            total_output_tokens += count_tokens(data["text"], tokenizer)
+    
+    print(f"\n{'='*60}")
+    print("Summary:")
+    print(f"  Total examples: {len(all_texts):,}")
+    print(f"  Total tokens: {total_output_tokens:,}")
+    print(f"  Output file: {args.output_path}")
+    print(f"{'='*60}")
+
+if __name__ == "__main__":
+    main()
+
