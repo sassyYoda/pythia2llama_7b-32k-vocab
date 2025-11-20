@@ -70,14 +70,16 @@ def main():
                 args.dataset_name,
                 split=args.split,
                 cache_dir=args.cache_dir,
-                streaming=True
+                streaming=True,
+                trust_remote_code=True
             )
         else:
             dataset = load_dataset(
                 args.dataset_name,
                 split=args.split,
                 cache_dir=args.cache_dir,
-                streaming=False
+                streaming=False,
+                trust_remote_code=True
             )
     except Exception as e:
         print(f"Error loading dataset: {e}")
@@ -86,7 +88,8 @@ def main():
             dataset = load_dataset(
                 args.dataset_name,
                 cache_dir=args.cache_dir,
-                streaming=args.streaming
+                streaming=args.streaming,
+                trust_remote_code=True
             )
             if isinstance(dataset, dict):
                 if args.split in dataset:
