@@ -14,9 +14,25 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 import random
 
-def count_tokens(text, tokenizer):
-    """Count tokens in text using a tokenizer."""
-    return len(tokenizer.encode(text, add_special_tokens=False))
+def count_tokens(text, tokenizer=None):
+    """
+    Estimate token count using character-based approximation.
+    Uses ~3.5 characters per token as a reasonable average for multilingual text.
+    Much faster than actual tokenization for corpus preparation.
+    """
+    if tokenizer is None:
+        # Character-based estimation (fast)
+        return max(1, len(text) // 3.5)
+    else:
+        # Actual tokenization (slower, but accurate)
+        return len(tokenizer.encode(text, add_special_tokens=False))
+
+def estimate_tokens_from_chars(text):
+    """
+    Fast character-based token estimation.
+    Uses ~3.5 chars/token average for multilingual text.
+    """
+    return max(1, int(len(text) / 3.5))
 
 def sample_from_dataset(dataset, target_tokens, tokenizer, dataset_name, seed=42, is_streaming=False):
     """
@@ -59,7 +75,8 @@ def sample_from_dataset(dataset, target_tokens, tokenizer, dataset_name, seed=42
                 text = str(example)
             
             if text and len(text.strip()) > 0:
-                tokens = count_tokens(text, tokenizer)
+                # Use fast character-based estimation instead of tokenization
+                tokens = estimate_tokens_from_chars(text)
                 if tokens > 0:
                     texts.append(text)
                     total_tokens += tokens
@@ -108,7 +125,8 @@ def sample_from_multiple_streaming_datasets(datasets, target_tokens, tokenizer, 
                 text = str(example)
             
             if text and len(text.strip()) > 0:
-                tokens = count_tokens(text, tokenizer)
+                # Use fast character-based estimation instead of tokenization
+                tokens = estimate_tokens_from_chars(text)
                 if tokens > 0:
                     texts.append(text)
                     total_tokens += tokens
@@ -396,13 +414,13 @@ def main():
             json.dump({"text": text}, f, ensure_ascii=False)
             f.write("\n")
     
-    # Count total tokens in output
-    print("\nCounting total tokens in output file...")
+    # Count total tokens in output (using character-based estimation for speed)
+    print("\nEstimating total tokens in output file (character-based)...")
     total_output_tokens = 0
     with open(args.output_path, "r", encoding="utf-8") as f:
-        for line in tqdm(f, desc="Counting tokens"):
+        for line in tqdm(f, desc="Estimating tokens"):
             data = json.loads(line)
-            total_output_tokens += count_tokens(data["text"], tokenizer)
+            total_output_tokens += estimate_tokens_from_chars(data["text"])
     
     print(f"\n{'='*60}")
     print("Summary:")
