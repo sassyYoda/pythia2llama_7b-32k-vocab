@@ -352,25 +352,6 @@ def prepare_dataset(tokenizer, data_args, model_args, training_args, logger):
             desc="Running tokenizer on dataset",
         )
 
-    if data_args.only_tokenize:
-        # Ensure validation split exists before saving
-        if "validation" not in tokenized_datasets.keys():
-            # Create validation split from train (5% default)
-            split_datasets = tokenized_datasets["train"].train_test_split(
-                test_size=data_args.validation_split_percentage / 100.0, 
-                seed=42
-            )
-            tokenized_datasets = DatasetDict({
-                "train": split_datasets["train"],
-                "validation": split_datasets["test"]
-            })
-            print(f"Created validation split: {len(tokenized_datasets['validation']):,} examples ({data_args.validation_split_percentage}%)")
-        
-        # save tokenized_dataset
-        tokenized_datasets.save_to_disk(data_args.dataset_path_in_disk)
-        print("Tokenized dataset is saved to disk",data_args.dataset_path_in_disk)
-        return tokenized_datasets
-
     if data_args.block_size is None:
         block_size = tokenizer.model_max_length
         if block_size > 1024:
@@ -429,8 +410,28 @@ def prepare_dataset(tokenizer, data_args, model_args, training_args, logger):
         )
 
     lm_datasets['train'] = lm_datasets['train'].filter(lambda example: len(example['input_ids']) == block_size, num_proc=data_args.preprocessing_num_workers)
+    
+    # Ensure validation split exists
+    if "validation" in lm_datasets:
+        lm_datasets['validation'] = lm_datasets['validation'].filter(lambda example: len(example['input_ids']) == block_size, num_proc=data_args.preprocessing_num_workers)
+    elif "validation" not in lm_datasets.keys():
+        # Create validation split from train (5% default)
+        split_datasets = lm_datasets["train"].train_test_split(
+            test_size=data_args.validation_split_percentage / 100.0, 
+            seed=42
+        )
+        lm_datasets = DatasetDict({
+            "train": split_datasets["train"],
+            "validation": split_datasets["test"]
+        })
+        print(f"Created validation split: {len(lm_datasets['validation']):,} examples ({data_args.validation_split_percentage}%)")
 
-    # Test the save to disk and load method
+    # Save dataset
+    if data_args.only_tokenize:
+        print("Tokenized and grouped dataset is saved to disk", data_args.dataset_path_in_disk)
+    else:
+        print("Processed dataset is saved to disk", data_args.dataset_path_in_disk)
+    
     lm_datasets.save_to_disk(data_args.dataset_path_in_disk)
     
     return lm_datasets
