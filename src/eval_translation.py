@@ -6,6 +6,7 @@ Evaluates the trained model on translation tasks in both directions and computes
 import argparse
 import json
 import os
+import re
 from typing import List, Tuple, Optional
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -34,6 +35,9 @@ def load_model_and_tokenizer(
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     
+    # Set padding side to left for decoder-only models (important for generation)
+    tokenizer.padding_side = "left"
+    
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
         torch_dtype=torch_dtype,
@@ -48,6 +52,41 @@ def load_model_and_tokenizer(
     print(f"Model loaded on {device}")
     
     return model, tokenizer
+
+
+def is_valid_text(text: str) -> Tuple[bool, Optional[str]]:
+    """Check if text passes quality filters.
+    
+    Returns:
+        Tuple of (is_valid, reason_if_invalid)
+    """
+    text = text.strip()
+    
+    # Check for very short texts (<30 chars or <5 words)
+    if len(text) < 30:
+        return False, "too_short_chars"
+    
+    word_count = len(text.split())
+    if word_count < 5:
+        return False, "too_short_words"
+    
+    # Check for very long texts (>500 chars)
+    if len(text) > 500:
+        return False, "too_long"
+    
+    # Check for garbage text (>50% punctuation)
+    punctuation_chars = len(re.findall(r'[^\w\s]', text))
+    total_chars = len(text.replace(' ', ''))  # Exclude spaces from total
+    if total_chars > 0:
+        punctuation_ratio = punctuation_chars / total_chars
+        if punctuation_ratio > 0.5:
+            return False, "too_much_punctuation"
+    
+    # Check for truncated titles ending with "·"
+    if text.endswith("·"):
+        return False, "truncated_title"
+    
+    return True, None
 
 
 def create_translation_prompt(
@@ -171,7 +210,9 @@ def generate_translations_batch(
 def load_opus_globalvoices(
     split: str = "test",
     max_samples: Optional[int] = None,
-    cache_dir: Optional[str] = None
+    cache_dir: Optional[str] = None,
+    min_length: Optional[int] = None,
+    max_length: Optional[int] = None
 ) -> List[Tuple[str, str]]:
     """Load OPUS Global Voices Spanish-English parallel corpus from HuggingFace.
     
@@ -179,6 +220,8 @@ def load_opus_globalvoices(
         split: Dataset split to use (train, validation, test)
         max_samples: Maximum number of samples to load
         cache_dir: Cache directory for HuggingFace datasets
+        min_length: Minimum character length for Spanish text (None = no minimum)
+        max_length: Maximum character length for Spanish text (None = no maximum)
     """
     print(f"Loading OPUS Global Voices from HuggingFace...")
     print(f"Note: Dataset only has 'train' split, will create {split} split manually")
@@ -228,7 +271,22 @@ def load_opus_globalvoices(
     # The 'en-es' config has 'english' and 'non_english' fields
     # 'non_english' is Spanish for the 'en-es' config
     pairs = []
-    for i in range(len(dataset)):
+    filtered_counts = {
+        "too_short_chars": 0,
+        "too_short_words": 0,
+        "too_long": 0,
+        "too_much_punctuation": 0,
+        "truncated_title": 0,
+        "length_filter": 0,
+        "empty": 0
+    }
+    
+    # Continue iterating until we have enough valid examples
+    for i in tqdm(range(len(dataset)), desc="Filtering dataset"):
+        # Stop if we have enough valid examples
+        if max_samples and len(pairs) >= max_samples:
+            break
+            
         example = dataset[i]
         # Field names are 'english' and 'non_english'
         english = example.get("english", "")
@@ -238,12 +296,43 @@ def load_opus_globalvoices(
         if spanish and english:
             spanish = str(spanish).strip()
             english = str(english).strip()
-            if len(spanish) > 0 and len(english) > 0:
-                # Store as (spanish, english) for consistency with our evaluation
-                pairs.append((spanish, english))
-        
-        if max_samples and len(pairs) >= max_samples:
-            break
+            
+            # Skip empty texts
+            if len(spanish) == 0 or len(english) == 0:
+                filtered_counts["empty"] += 1
+                continue
+            
+            # Apply quality filters to Spanish text
+            is_valid, filter_reason = is_valid_text(spanish)
+            if not is_valid:
+                filtered_counts[filter_reason] += 1
+                continue
+            
+            # Apply custom length filters if specified
+            spanish_len = len(spanish)
+            if min_length is not None and spanish_len < min_length:
+                filtered_counts["length_filter"] += 1
+                continue
+            if max_length is not None and spanish_len > max_length:
+                filtered_counts["length_filter"] += 1
+                continue
+            
+            # Store as (spanish, english) for consistency with our evaluation
+            pairs.append((spanish, english))
+            
+            # Check again after adding (in case max_samples was reached)
+            if max_samples and len(pairs) >= max_samples:
+                break
+    
+    # Print filtering statistics
+    total_filtered = sum(filtered_counts.values())
+    if total_filtered > 0:
+        print(f"\nFiltering statistics:")
+        print(f"  Total filtered: {total_filtered}")
+        for reason, count in filtered_counts.items():
+            if count > 0:
+                print(f"  - {reason}: {count}")
+        print(f"  Kept: {len(pairs)} examples")
     
     print(f"Loaded {len(pairs)} sentence pairs from HuggingFace")
     return pairs
@@ -582,6 +671,18 @@ def main():
         default=16,
         help="Batch size for translation generation (default: 16 for H100)"
     )
+    parser.add_argument(
+        "--min_length",
+        type=int,
+        default=None,
+        help="Minimum character length for Spanish text (filters examples)"
+    )
+    parser.add_argument(
+        "--max_length",
+        type=int,
+        default=None,
+        help="Maximum character length for Spanish text (should be less than max_new_tokens * ~4 chars/token)"
+    )
     
     args = parser.parse_args()
     
@@ -589,7 +690,9 @@ def main():
     pairs = load_opus_globalvoices(
         split=args.dataset_split,
         max_samples=args.max_samples,
-        cache_dir=args.cache_dir
+        cache_dir=args.cache_dir,
+        min_length=args.min_length,
+        max_length=args.max_length
     )
     
     if not pairs:

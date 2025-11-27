@@ -23,6 +23,12 @@ export DEVICE="cuda"  # Options: cuda or cpu
 export DIRECTIONS="es-en"  # Options: both, es-en, en-es (only Spanish->English)
 export PROMPT_TEMPLATE="Spanish: {source} English: "  # Simplified prompt template
 
+# Quality filtering is handled automatically in the script:
+# - Removes texts <30 chars or <5 words
+# - Removes texts >500 chars
+# - Removes texts with >50% punctuation
+# - Removes truncated titles ending with "·"
+
 # Batch sizes (optimized for H100 GPU)
 export TRANSLATION_BATCH_SIZE=16  # Batch size for translation generation
 
@@ -42,6 +48,7 @@ echo "Split: ${DATASET_SPLIT}"
 echo "Max samples: ${MAX_SAMPLES}"
 echo "Directions: ${DIRECTIONS}"
 echo "Prompt template: ${PROMPT_TEMPLATE}"
+echo "Quality filters: Auto (removes short/long/garbage/truncated texts)"
 echo "Translation batch size: ${TRANSLATION_BATCH_SIZE}"
 echo "Output directory: ${OUTPUT_DIR}"
 echo "=========================================="

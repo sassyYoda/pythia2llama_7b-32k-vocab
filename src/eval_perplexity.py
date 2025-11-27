@@ -34,6 +34,9 @@ def load_model_and_tokenizer(
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     
+    # Set padding side to left for decoder-only models
+    tokenizer.padding_side = "left"
+    
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
         torch_dtype=torch_dtype,
