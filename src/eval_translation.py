@@ -361,6 +361,7 @@ def evaluate_translation(
     
     predictions = []
     references = []
+    prompts = []  # Store prompts for output formatting
     
     # Generate translations in batches
     num_batches = (len(source_texts) + batch_size - 1) // batch_size
@@ -384,6 +385,10 @@ def evaluate_translation(
             )
             predictions.extend(batch_predictions)
             references.extend(batch_targets)
+            # Store prompts for each source text
+            for source in batch_sources:
+                prompt = create_translation_prompt(source, direction, prompt_template)
+                prompts.append(prompt)
         except Exception as e:
             print(f"Error translating batch {batch_idx} (examples {start_idx}-{end_idx-1}): {e}")
             # Fall back to individual generation for this batch
@@ -399,10 +404,16 @@ def evaluate_translation(
                     )
                     predictions.append(prediction)
                     references.append(reference)
+                    # Store prompt for this source text
+                    prompt = create_translation_prompt(source, direction, prompt_template)
+                    prompts.append(prompt)
                 except Exception as e2:
                     print(f"Error translating example {start_idx + i}: {e2}")
                     predictions.append("")
                     references.append(reference)
+                    # Store prompt even for failed translations
+                    prompt = create_translation_prompt(source, direction, prompt_template)
+                    prompts.append(prompt)
     
     # Compute BLEU scores
     bleu = BLEU()
@@ -413,11 +424,18 @@ def evaluate_translation(
     for pred, ref in zip(predictions, references):
         try:
             sent_bleu = bleu.sentence_score(pred, [ref], effective_order=True)
+            # sent_bleu.score is already a float (BLEU score)
             sentence_bleus.append(sent_bleu.score)
-        except:
+        except Exception as e:
+            # If there's an error, log it but continue
             sentence_bleus.append(0.0)
     
     avg_sentence_bleu = sum(sentence_bleus) / len(sentence_bleus) if sentence_bleus else 0.0
+    
+    # Debug: Show some sample sentence BLEU scores
+    if len(sentence_bleus) > 0:
+        non_zero_count = sum(1 for s in sentence_bleus if s > 0)
+        print(f"  Sentence-level BLEU: {non_zero_count}/{len(sentence_bleus)} sentences have non-zero BLEU")
     
     results = {
         "direction": direction,
@@ -433,7 +451,7 @@ def evaluate_translation(
         "avg_sentence_bleu": avg_sentence_bleu,
     }
     
-    return results, predictions, references
+    return results, predictions, references, prompts
 
 
 def compute_perplexity(
@@ -566,6 +584,7 @@ def save_results(
     results: dict,
     predictions: List[str],
     references: List[str],
+    prompts: List[str],
     output_dir: str,
     direction: str
 ):
@@ -577,13 +596,11 @@ def save_results(
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
     
-    # Save translations (predictions and references)
+    # Save translations (prompts, predictions and references)
     translations_path = os.path.join(output_dir, f"{direction}_translations.txt")
     with open(translations_path, "w", encoding="utf-8") as f:
-        for pred, ref in zip(predictions, references):
-            f.write(f"PRED: {pred}\n")
-            f.write(f"REF:  {ref}\n")
-            f.write("\n")
+        for prompt, pred, ref in zip(prompts, predictions, references):
+            f.write(f"Prompt: {prompt}, Predicted English Output: {pred}, True Output: {ref}\n")
     
     print(f"Results saved to {output_dir}")
 
@@ -708,7 +725,7 @@ def main():
     
     # Evaluate Spanish -> English
     if args.directions in ["both", "es-en"]:
-        es_en_results, es_en_preds, es_en_refs = evaluate_translation(
+        es_en_results, es_en_preds, es_en_refs, es_en_prompts = evaluate_translation(
             model, tokenizer,
             spanish_texts, english_texts,
             direction="es-en",
@@ -722,7 +739,7 @@ def main():
         )
         all_results["es-en"] = es_en_results
         save_results(
-            es_en_results, es_en_preds, es_en_refs,
+            es_en_results, es_en_preds, es_en_refs, es_en_prompts,
             args.output_dir, "es-en"
         )
         
@@ -739,7 +756,7 @@ def main():
     
     # Evaluate English -> Spanish
     if args.directions in ["both", "en-es"]:
-        en_es_results, en_es_preds, en_es_refs = evaluate_translation(
+        en_es_results, en_es_preds, en_es_refs, en_es_prompts = evaluate_translation(
             model, tokenizer,
             english_texts, spanish_texts,
             direction="en-es",
@@ -753,7 +770,7 @@ def main():
         )
         all_results["en-es"] = en_es_results
         save_results(
-            en_es_results, en_es_preds, en_es_refs,
+            en_es_results, en_es_preds, en_es_refs, en_es_prompts,
             args.output_dir, "en-es"
         )
         
