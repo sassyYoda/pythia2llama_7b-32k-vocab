@@ -408,11 +408,11 @@ def evaluate_translation(
     bleu = BLEU()
     bleu_score = bleu.corpus_score(predictions, [references])
     
-    # Also compute sentence-level BLEU for statistics
+    # Also compute sentence-level BLEU for statistics (with effective_order to suppress warnings)
     sentence_bleus = []
     for pred, ref in zip(predictions, references):
         try:
-            sent_bleu = bleu.sentence_score(pred, [ref])
+            sent_bleu = bleu.sentence_score(pred, [ref], effective_order=True)
             sentence_bleus.append(sent_bleu.score)
         except:
             sentence_bleus.append(0.0)
@@ -427,7 +427,7 @@ def evaluate_translation(
             "precisions": bleu_score.precisions,
             "bp": bleu_score.bp,
             "ratio": bleu_score.ratio,
-            "hyp_len": bleu_score.hyp_len,
+            "sys_len": bleu_score.sys_len,
             "ref_len": bleu_score.ref_len,
         },
         "avg_sentence_bleu": avg_sentence_bleu,
