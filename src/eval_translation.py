@@ -60,9 +60,9 @@ def create_translation_prompt(
         # Use custom template with {source} placeholder
         prompt = prompt_template.replace("{source}", source_text)
     elif direction == "es-en":
-        prompt = f"Translate the following Spanish text to English:\n\nSpanish: {source_text}\nEnglish:"
+        prompt = f"Spanish: {source_text} English: "
     elif direction == "en-es":
-        prompt = f"Translate the following English text to Spanish:\n\nEnglish: {source_text}\nSpanish:"
+        prompt = f"English: {source_text} Spanish: "
     else:
         raise ValueError(f"Unknown direction: {direction}")
     return prompt
@@ -577,18 +577,6 @@ def main():
         help="Top-p (nucleus) sampling parameter"
     )
     parser.add_argument(
-        "--compute_perplexity",
-        action="store_true",
-        default=True,
-        help="Compute perplexity on English and Spanish texts"
-    )
-    parser.add_argument(
-        "--perplexity_batch_size",
-        type=int,
-        default=32,
-        help="Batch size for perplexity computation (default: 32 for H100)"
-    )
-    parser.add_argument(
         "--translation_batch_size",
         type=int,
         default=16,
@@ -614,49 +602,6 @@ def main():
     model, tokenizer = load_model_and_tokenizer(args.model_path, device=args.device)
     
     all_results = {}
-    
-    # Compute perplexity on English and Spanish texts
-    if args.compute_perplexity:
-        print(f"\n{'='*60}")
-        print(f"Computing Perplexity Metrics")
-        print(f"{'='*60}")
-        
-        spanish_perplexity = compute_perplexity(
-            model, tokenizer,
-            spanish_texts,
-            language="Spanish",
-            batch_size=args.perplexity_batch_size,
-            device=args.device,
-            max_samples=args.max_samples
-        )
-        all_results["spanish_perplexity"] = spanish_perplexity
-        
-        english_perplexity = compute_perplexity(
-            model, tokenizer,
-            english_texts,
-            language="English",
-            batch_size=args.perplexity_batch_size,
-            device=args.device,
-            max_samples=args.max_samples
-        )
-        all_results["english_perplexity"] = english_perplexity
-        
-        # Save perplexity results
-        perplexity_path = os.path.join(args.output_dir, "perplexity_metrics.json")
-        os.makedirs(args.output_dir, exist_ok=True)
-        with open(perplexity_path, "w", encoding="utf-8") as f:
-            json.dump({
-                "spanish": spanish_perplexity,
-                "english": english_perplexity
-            }, f, indent=2, ensure_ascii=False)
-        print(f"Perplexity results saved to {perplexity_path}")
-        
-        print(f"\n{'='*60}")
-        print(f"Perplexity Summary:")
-        print(f"{'='*60}")
-        print(f"Spanish Perplexity: {spanish_perplexity['perplexity']:.4f}")
-        print(f"English Perplexity: {english_perplexity['perplexity']:.4f}")
-        print(f"{'='*60}\n")
     
     # Evaluate Spanish -> English
     if args.directions in ["both", "es-en"]:

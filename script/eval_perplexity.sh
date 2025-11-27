@@ -15,16 +15,16 @@ export NUM_STEPS=2500
 export MODEL_PATH="${MAIN_DIR}/log/${MODEL}/${SEED}_${TGT}_S2/checkpoint-${NUM_STEPS}"
 
 # Evaluation settings
-export DATASET_SPLIT="test"  # Options: train, validation, test
-export MAX_SAMPLES="5000"  # Number of samples to evaluate
-export OUTPUT_DIR="${MAIN_DIR}/log/translation_eval/${MODEL}_${SEED}_${TGT}"
+export CORPUS_NAME="mc4"  # Options: mc4, wikipedia, oscar
+export SPLIT="validation"  # Options: train, validation, test
+export MAX_SAMPLES=""  # Leave empty for all samples, or set a number like 10000
+export OUTPUT_DIR="${MAIN_DIR}/log/perplexity_eval/${MODEL}_${SEED}_${TGT}_${CORPUS_NAME}"
 export CACHE_DIR="${MAIN_DIR}/data/cache"  # Optional: specify cache directory for HuggingFace datasets
 export DEVICE="cuda"  # Options: cuda or cpu
-export DIRECTIONS="es-en"  # Options: both, es-en, en-es (only Spanish->English)
-export PROMPT_TEMPLATE="Spanish: {source} English: "  # Simplified prompt template
 
 # Batch sizes (optimized for H100 GPU)
-export TRANSLATION_BATCH_SIZE=16  # Batch size for translation generation
+export BATCH_SIZE=32  # Batch size for perplexity computation
+export MAX_LENGTH=512  # Maximum sequence length
 
 # Check if model checkpoint exists
 if [ ! -d "${MODEL_PATH}" ]; then
@@ -34,36 +34,38 @@ if [ ! -d "${MODEL_PATH}" ]; then
 fi
 
 echo "=========================================="
-echo "Translation Evaluation"
+echo "Perplexity Evaluation (Spanish Monolingual)"
 echo "=========================================="
 echo "Model path: ${MODEL_PATH}"
-echo "Dataset: OPUS Global Voices (Spanish-English)"
-echo "Split: ${DATASET_SPLIT}"
-echo "Max samples: ${MAX_SAMPLES}"
-echo "Directions: ${DIRECTIONS}"
-echo "Prompt template: ${PROMPT_TEMPLATE}"
-echo "Translation batch size: ${TRANSLATION_BATCH_SIZE}"
+echo "Corpus: ${CORPUS_NAME} (Spanish)"
+echo "Split: ${SPLIT}"
+echo "Max samples: ${MAX_SAMPLES:-all}"
+echo "Batch size: ${BATCH_SIZE}"
+echo "Max length: ${MAX_LENGTH}"
 echo "Output directory: ${OUTPUT_DIR}"
 echo "=========================================="
 echo ""
 
 # Build command
-CMD="python src/eval_translation.py \
+CMD="python src/eval_perplexity.py \
     --model_path ${MODEL_PATH} \
-    --dataset_split ${DATASET_SPLIT} \
+    --corpus_name ${CORPUS_NAME} \
+    --split ${SPLIT} \
     --output_dir ${OUTPUT_DIR} \
     --device ${DEVICE} \
-    --directions ${DIRECTIONS} \
-    --translation_batch_size ${TRANSLATION_BATCH_SIZE} \
-    --max_samples ${MAX_SAMPLES} \
-    --prompt_template_es_en '${PROMPT_TEMPLATE}'"
+    --batch_size ${BATCH_SIZE} \
+    --max_length ${MAX_LENGTH}"
+
+if [ -n "${MAX_SAMPLES}" ]; then
+    CMD="${CMD} --max_samples ${MAX_SAMPLES}"
+fi
 
 if [ -n "${CACHE_DIR}" ]; then
     CMD="${CMD} --cache_dir ${CACHE_DIR}"
 fi
 
 # Run evaluation
-echo "Running evaluation..."
+echo "Running perplexity evaluation..."
 echo "Command: ${CMD}"
 echo ""
 
