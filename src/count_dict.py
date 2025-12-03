@@ -27,7 +27,7 @@ def read_vocab(tok_path):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-s", "--source-tokenizer-path", type=str, default="EleutherAI/pythia-1b")
-    parser.add_argument("-t", "--target-tokenizer-path", type=str, default="meta-llama/Llama-2-7b")
+    parser.add_argument("-t", "--target-tokenizer-path", type=str, default="meta-llama/Llama-2-7b-hf")
     parser.add_argument("-o", "--output-path", type=str, default="./data/Vocab_count/llama2-7b2pythia.json")
     
     args = parser.parse_args()

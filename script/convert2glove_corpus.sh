@@ -18,8 +18,8 @@ export DATASET_PATH1="${MAIN_DIR}/data/pretrain-dataset/mix-pythia-tok"
 export GLOVE_TRAIN_PATH1="${MAIN_DIR}/data/pretrain-dataset/mix-pythia-glove"
 
 # Target Tokenizer
-export MODLE_PATH2="meta-llama/Llama-2-7b"
-export TOKENIZER_PATH2="meta-llama/Llama-2-7b"
+export MODLE_PATH2="meta-llama/Llama-2-7b-hf"
+export TOKENIZER_PATH2="meta-llama/Llama-2-7b-hf"
 
 export DATASET_PATH2="${MAIN_DIR}/data/pretrain-dataset/mix-llama2-7b-tok"
 export GLOVE_TRAIN_PATH2="${MAIN_DIR}/data/pretrain-dataset/mix-llama2-7b-glove"

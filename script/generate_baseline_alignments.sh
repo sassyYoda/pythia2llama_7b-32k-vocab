@@ -7,7 +7,7 @@ cd ${MAIN_DIR}
 
 # Source and target tokenizers
 export SOURCE_TOKENIZER="EleutherAI/pythia-1b"
-export TARGET_TOKENIZER="meta-llama/Llama-2-7b"
+export TARGET_TOKENIZER="meta-llama/Llama-2-7b-hf"
 
 # Output directory for baseline alignment matrices
 export OUTPUT_DIR="${MAIN_DIR}/data/pythia2llama2-7b"

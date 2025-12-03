@@ -94,8 +94,8 @@ if __name__ == '__main__':
     parser.add_argument(
         "-t", "--target-tokenizer-path",
         type=str,
-        default="meta-llama/Llama-2-7b",
-        help="Target tokenizer path (default: meta-llama/Llama-2-7b)"
+        default="meta-llama/Llama-2-7b-hf",
+        help="Target tokenizer path (default: meta-llama/Llama-2-7b-hf)"
     )
     parser.add_argument(
         "-o", "--output-dir",

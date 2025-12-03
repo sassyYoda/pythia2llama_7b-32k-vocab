@@ -285,7 +285,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--one2one-matrix-path", type=str, default="./data/pythia2llama2-7b/glove.json")
     parser.add_argument("-s", "--source-model-path", type=str, default="EleutherAI/pythia-1b")
-    parser.add_argument("-t", "--target-tokenizer-path", type=str, default="meta-llama/Llama-2-7b")
+    parser.add_argument("-t", "--target-tokenizer-path", type=str, default="meta-llama/Llama-2-7b-hf")
     parser.add_argument("-o", "--output-model-path", type=str, default="./data/pythia2llama2-7b/glove")
     parser.add_argument("-r", "--random-shuffle-percentage", type=float, default=-1, help="The percentage of token pairs that are randomly shuffled rather than map to the target.")
 

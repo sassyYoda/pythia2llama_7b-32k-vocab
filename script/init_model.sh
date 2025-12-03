@@ -10,7 +10,7 @@ export TGT_ID_2_SRC_ID_RES_PATH="${MAIN_DIR}/data/pythia2llama2-7b/align_matrix.
 
 export MODLE_PATH1="EleutherAI/pythia-1b"
 
-export TOKENIZER_PATH2="meta-llama/Llama-2-7b"
+export TOKENIZER_PATH2="meta-llama/Llama-2-7b-hf"
 
 export OUTPUT_PATH="${MAIN_DIR}/data/pythia2llama2-7b/TokAlign-Init-1B"
 

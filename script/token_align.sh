@@ -11,8 +11,8 @@ export TOKENIZER_PATH1="EleutherAI/pythia-1b"
 export GLOVE_TRAIN_PATH1="${MAIN_DIR}/data/pretrain-dataset/mix-pythia-glove"
 export GLOVE_VECTOR_PATH1="${MAIN_DIR}/data/vec-mix-pythia.txt"
 
-export MODLE_PATH2="meta-llama/Llama-2-7b"
-export TOKENIZER_PATH2="meta-llama/Llama-2-7b"
+export MODLE_PATH2="meta-llama/Llama-2-7b-hf"
+export TOKENIZER_PATH2="meta-llama/Llama-2-7b-hf"
 export GLOVE_TRAIN_PATH2="${MAIN_DIR}/data/pretrain-dataset/mix-llama2-7b-glove"
 export GLOVE_VECTOR_PATH2="${MAIN_DIR}/data/vec-mix-llama2-7b.txt"
 
