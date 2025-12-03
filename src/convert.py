@@ -19,10 +19,10 @@ _LMHEAD_DICT = {
 }
 
 def trans2switch(
-    trans_path="./log/qwen2-7b2pythia/glove.json",
+    trans_path="./log/llama2-7b2pythia/glove.json",
     src_clm_path="./data/pythia-1b",
-    tgt_clm_path="./data/pythia-1b2qwen2-7b",
-    tgt_tok_path="./data/qwen2-7b",
+    tgt_clm_path="./data/pythia-1b2llama2-7b",
+    tgt_tok_path="./data/llama2-7b",
     random_shuffle=-1,
 ):
     import sys
@@ -187,8 +187,8 @@ def trans2switch(
 
 def random_permute(
     src_clm_path="./data/pythia-1b",
-    tgt_clm_path="./data/pythia-1b2qwen2-7b",
-    tgt_tok_path="./data/qwen2-7b",
+    tgt_clm_path="./data/pythia-1b2llama2-7b",
+    tgt_tok_path="./data/llama2-7b",
     seed=0,
 ):
     random.seed(seed)
@@ -229,8 +229,8 @@ def random_permute(
 
 def random_initial_all(
     src_clm_path="./data/pythia-1b",
-    tgt_clm_path="./data/pythia-1b2qwen2-7b",
-    tgt_tok_path="./data/qwen2-7b",
+    tgt_clm_path="./data/pythia-1b2llama2-7b",
+    tgt_tok_path="./data/llama2-7b",
     seed=0,
 ):
     random.seed(seed)
@@ -266,8 +266,8 @@ def random_initial_all(
 
 def random_initial_aug(
     src_clm_path="./data/pythia-1b",
-    tgt_clm_path="./data/pythia-1b2qwen2-7b",
-    tgt_tok_path="./data/qwen2-7b",
+    tgt_clm_path="./data/pythia-1b2llama2-7b",
+    tgt_tok_path="./data/llama2-7b",
     seed=0,
 ):
     random.seed(seed)
@@ -283,10 +283,10 @@ def random_initial_aug(
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--one2one-matrix-path", type=str, default="./data/pythia2qwen2-7b/glove.json")
+    parser.add_argument("-m", "--one2one-matrix-path", type=str, default="./data/pythia2llama2-7b/glove.json")
     parser.add_argument("-s", "--source-model-path", type=str, default="EleutherAI/pythia-1b")
-    parser.add_argument("-t", "--target-tokenizer-path", type=str, default="Qwen/Qwen2-7B")
-    parser.add_argument("-o", "--output-model-path", type=str, default="./data/pythia2qwen2-7b/glove")
+    parser.add_argument("-t", "--target-tokenizer-path", type=str, default="meta-llama/Llama-2-7b")
+    parser.add_argument("-o", "--output-model-path", type=str, default="./data/pythia2llama2-7b/glove")
     parser.add_argument("-r", "--random-shuffle-percentage", type=float, default=-1, help="The percentage of token pairs that are randomly shuffled rather than map to the target.")
 
     args = parser.parse_args()
