@@ -38,9 +38,14 @@ def convert2eval(
     d1 = datasets.load_from_disk(src_tok_path)
     print(f"Loading target dataset from {tgt_tok_path}...")
     d2 = datasets.load_from_disk(tgt_tok_path)
-    assert(len(d1[key]) == len(d2[key]))
     
-    total_examples = min(max_line, len(d1[key]))
+    len1 = len(d1[key])
+    len2 = len(d2[key])
+    if len1 != len2:
+        print(f"Warning: Source dataset has {len1:,} examples, target dataset has {len2:,} examples.")
+        print(f"Using the minimum length ({min(len1, len2):,}) for alignment.")
+    
+    total_examples = min(max_line, len1, len2)
     print(f"Processing {total_examples:,} aligned examples (min length: {min_line_len})...")
 
     written = 0
